@@ -67,11 +67,13 @@ int num_accounts = 0;
 int num_transactions = 0;
 int errors = 0; // Counter for total errors
 int thread_loads[3] = {0, 0, 0};
+int thread_transacts[4] = {0, 0, 0, 0};
 int line_no = 0;
 int total_withdrawals = 0;
 int total_deposits = 0;
 int total_transfers = 0;
 int thread_index=0;
+int thread_index_transact=0;
 int total_errors_transactions = 0;
 //--------------------------------------------------- Function to be executed by each thread
 void *process_csv_line(void *arg) {
@@ -196,18 +198,18 @@ void load_users_from_csv(const char *file_path) {
      time_t current_time;
     struct tm *time_info;
     char time_string[20]; 
-
+    char datetime[30];
     time(&current_time);
     time_info = localtime(&current_time);
-    strftime(time_string, sizeof(time_string), "load_%Y_.log", time_info);
-
+    strftime(time_string, sizeof(time_string), "load_%Y-%m-%d %H:%M:%S.log", time_info);
+    strftime(datetime, sizeof(datetime), "%Y-%m-%d %H:%M:%S", time_info);
     FILE *report_file = fopen(time_string, "w");
     if (report_file == NULL) {
         printf("Error creating report file.\n");
         return;
     }
 
-    fprintf(report_file, "------\nDate: %sUploaded Users:\n", time_string);
+    fprintf(report_file, "------\nDate: %s \n", datetime);
     fprintf(report_file, "Thread #1: %d\n", thread_loads[0]);
     fprintf(report_file, "Thread #2: %d\n", thread_loads[1]);
     fprintf(report_file, "Thread #3: %d\n", thread_loads[2]);
@@ -363,7 +365,7 @@ void *process_transaction_line(void *arg) {
         perform_transaction(&transaction); 
     }
     else {
-        total_errors_transactions += errors; 
+        total_errors_transactions++; 
     }
 
     free(line); 
@@ -404,7 +406,7 @@ void load_transactions_from_csv(const char *file_path) {
         }
         data->line = line_copy;
         data->line_no = line_no;
-
+        thread_index_transact = i;
         if (pthread_create(&threads[i], NULL, process_transaction_line, (void *)data) != 0) {
             printf("Error creating thread.\n");
             free(line_copy);
@@ -434,23 +436,24 @@ void load_transactions_from_csv(const char *file_path) {
     time_t current_time;
     struct tm *time_info;
     char time_string[20]; 
+    char datetime[30];
 
     time(&current_time);
     time_info = localtime(&current_time);
-    strftime(time_string, sizeof(time_string), "operaciones_%Y.log", time_info);
-
-    FILE *report_file2 = fopen("operaciones.log", "w");
+    strftime(time_string, sizeof(time_string), "operaciones_%Y-%m-%d %H:%M:%S.log", time_info);
+    strftime(datetime, sizeof(datetime), "%Y-%m-%d %H:%M:%S", time_info);
+    FILE *report_file2 = fopen(time_string, "w");
     if (report_file2 == NULL) {
         printf("Error creating report file.\n");
         return;
     }
-
+    fprintf(report_file2, "------\nDate: %s\n", datetime);
     fprintf(report_file2, "Total errors: %d\n", total_errors_transactions);
     fprintf(report_file2, "Operations per thread: \n");
-    fprintf(report_file2, "Thread #1: %d\n", thread_loads[0]);
-    fprintf(report_file2, "Thread #2: %d\n", thread_loads[1]);
-    fprintf(report_file2, "Thread #3: %d\n", thread_loads[2]);
-    //fprintf(report_file2, "Thread #4: %d\n", thread_loads[3]);
+    fprintf(report_file2, "Thread #1: %d\n", thread_transacts[0]);
+    fprintf(report_file2, "Thread #2: %d\n", thread_transacts[1]);
+    fprintf(report_file2, "Thread #3: %d\n", thread_transacts[2]);
+    fprintf(report_file2, "Thread #4: %d\n", thread_transacts[3]);
     fprintf(report_file2, "Total: %d\n", num_transactions);
     fprintf(report_file2, "Withdrawals: %d\n", total_withdrawals);
     fprintf(report_file2, "Deposits: %d\n", total_deposits);
@@ -476,7 +479,7 @@ Account *find_account(int account_no) {
 
 void perform_transaction(Transaction *transaction) {
     Account *acc1, *acc2;
-    
+    thread_transacts[thread_index_transact]++;
     // 1. Find accounts (with synchronization if needed)
     acc1 = find_account(transaction->account1);
     if (acc1 == NULL) {
